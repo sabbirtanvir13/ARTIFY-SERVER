@@ -28,6 +28,7 @@ async function run() {
 
     const db = client.db('artify_db');
     const artifyCollection = db.collection('artifys');
+    const favoritesCollection = db.collection('favorites');
      
 
     app.get('/artifys', async (req, res) => {
@@ -110,6 +111,11 @@ app.put("/artifys/:id", async (req, res) => {
 
 
 
+
+app.post('/favorites',async(req,res)=>{
+  const data=res.body;
+  const result =await
+})
 
 
 
