@@ -29,7 +29,7 @@ async function run() {
     const db = client.db('artify_db');
     const artifyCollection = db.collection('artifys');
      
-    // GET all artworks
+
     app.get('/artifys', async (req, res) => {
       const result = await artifyCollection.find().toArray();
       res.send(result);
@@ -83,7 +83,6 @@ app.get('/explore-artworks', async (req, res) => {
 });
 
 
-
 // ✅ Get artworks by user email
 app.get("/my-artworks", async (req, res) => {
   const email = req.query.email;
@@ -91,7 +90,7 @@ app.get("/my-artworks", async (req, res) => {
   res.send(result);
 });
 
-// ✅ Delete artwork
+
 app.delete("/artifys/:id", async (req, res) => {
   const id = req.params.id;
   const result = await artifyCollection.deleteOne({ _id: new ObjectId(id) });
@@ -108,6 +107,7 @@ app.put("/artifys/:id", async (req, res) => {
   );
   res.send(result);
 });
+
 
 
 
