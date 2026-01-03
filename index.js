@@ -6,13 +6,13 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 const app = express();
 const port = process.env.PORT || 3000;
-
+require('dotenv').config()
 
 app.use(cors());
 app.use(express.json());
 
 
-const uri = "mongodb+srv://artify_db:W52DpwrCqs9k0UHO@cluster0.tx061fa.mongodb.net/artify_db?retryWrites=true&w=majority";
+const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.tx061fa.mongodb.net/artify_db?retryWrites=true&w=majority`;
 
 
 const client = new MongoClient(uri, {
@@ -26,17 +26,55 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
+    // Always at top
+
+    // await client.connect();
     console.log(" Connected to MongoDB!");
 
     const db = client.db("artify_db");
     const artifyCollection = db.collection("artifys");
-     const  favoritesCollection = db.collection('favorites');
+    const favoritesCollection = db.collection('favorites');
+    const statsCollection = db.collection("stats");
+    const testimonialsCollection = db.collection("testimonials");
+
+app.get("/testimonials", async (req, res) => {
+  const data = await testimonialsCollection.find().toArray();
+  res.send(data);
+});
+
+app.post("/testimonials", async (req, res) => {
+  const { name, message } = req.body; // only required fields
+  if (!name || !message) return res.status(400).send({ error: "Name & message required" });
+
+  const result = await testimonialsCollection.insertOne({ name, message });
+  res.send({ success: true, insertedId: result.insertedId });
+});
+
 
     app.get("/artifys", async (req, res) => {
       const result = await artifyCollection.find().toArray();
       res.send(result);
     });
+
+
+
+
+
+      app.post("/stats", async (req, res) => {
+  const { label, value } = req.body;
+  if (!label || !value) return res.status(400).send({ error: "Label & value required" });
+
+  const result = await statsCollection.insertOne({ label, value });
+  res.send({ success: true, insertedId: result.insertedId });
+});
+
+
+    //  Get platform stats
+    app.get("/stats", async (req, res) => {
+      const stats = await statsCollection.find().toArray();
+      res.send(stats);
+    });
+
 
 
     app.get("/artifys/:id", async (req, res) => {
@@ -58,7 +96,7 @@ async function run() {
       const result = await artifyCollection
         .find()
         .sort({ createdAt: -1 })
-        .limit(6)
+        .limit(8)
         .toArray();
       res.send(result);
     });
@@ -99,26 +137,54 @@ async function run() {
 
 
 
-app.post("/artifys/:id/like", async (req, res) => {
-  const id = req.params.id;
-  const { email } = req.body;
+    app.post("/artifys/:id/like", async (req, res) => {
+      const id = req.params.id;
+      const { email } = req.body;
 
-  if (!email) return res.status(400).send({ error: "Missing user email" });
+      if (!email) return res.status(400).send({ error: "Missing user email" });
 
-  const result = await artifyCollection.updateOne(
-    { _id: new ObjectId(id), likedBy: { $ne: email } },
-    { $inc: { likes: 1 }, $push: { likedBy: email } }
-  );
-  const updatedArtwork = await artifyCollection.findOne({ _id: new ObjectId(id) });
-  res.send({ success: true, artwork: updatedArtwork });
-});
-
-
+      const result = await artifyCollection.updateOne(
+        { _id: new ObjectId(id), likedBy: { $ne: email } },
+        { $inc: { likes: 1 }, $push: { likedBy: email } }
+      );
+      const updatedArtwork = await artifyCollection.findOne({ _id: new ObjectId(id) });
+      res.send({ success: true, artwork: updatedArtwork });
+    });
 
 
+    app.post("/favorites", async (req, res) => {
+      const { email, artworkId, title, image, artistName } = req.body;
+
+      const exists = await favoritesCollection.findOne({ email, artworkId });
+      if (exists) return res.send({ success: false });
+
+      const result = await favoritesCollection.insertOne({
+        email,
+        artworkId,
+        title,
+        image,
+        artistName,
+        createdAt: new Date(),
+      });
+
+      res.send({ success: true, result });
+    });
+
+    app.get("/favorites", async (req, res) => {
+      const favorites = await favoritesCollection.find({ email: req.query.email }).toArray();
+      res.send(favorites);
+    });
+
+    app.delete("/favorites/:id", async (req, res) => {
+      const result = await favoritesCollection.deleteOne({ _id: new ObjectId(req.params.id) });
+      res.send({ success: true, result });
+    });
 
 
-    //  Root route
+
+
+
+
     app.get("/", (req, res) => {
       res.send(" Artify server is running!");
     });
@@ -130,7 +196,7 @@ app.post("/artifys/:id/like", async (req, res) => {
 
 run().catch(console.dir);
 
-//  Start server
+
 app.listen(port, () => {
   console.log(` Server running on port ${port}`);
 });
