@@ -532,33 +532,9 @@ async function run() {
     const faqCollection = db.collection("faqs");
     const newsletterCollection = db.collection("newsletter");
 
-    // ===== Save/Update user on Firebase login =====
-    // app.post("/user", async (req, res) => {
-    //   const userData = req.body;
-    //   if (!userData.email || !userData.name) return res.status(400).send({ message: "Name & email required" });
-
-    //   const existingUser = await usersCollection.findOne({ email: userData.email });
-    //   if (existingUser) {
-    //     const result = await usersCollection.updateOne(
-    //       { email: userData.email },
-    //       { $set: { last_loggedIn: new Date().toISOString() } }
-    //     );
-    //     return res.send({ success: true, message: "User updated", result });
-    //   }
-
-    //   const newUser = {
-    //     name: userData.name,
-    //     email: userData.email,
-    //     role: 'user',
-    //     createdAt: new Date().toISOString(),
-    //     last_loggedIn: new Date().toISOString()
-    //   };
-    //   const result = await usersCollection.insertOne(newUser);
-    //   res.send({ success: true, message: "New user created", insertedId: result.insertedId });
-    // });
 
 
-      // ✅ verifyADMIN এখানে আনো
+    // ✅ verifyADMIN এখানে আনো
     const verifyADMIN = async (req, res, next) => {
       const email = req.tokenEmail
       const user = await usersCollection.findOne({ email })
@@ -604,41 +580,57 @@ async function run() {
     })
 
     // get a user's role
-  app.get('/user/role', verifyJWT, async (req, res) => {
-  const user = await usersCollection.findOne({ email: req.tokenEmail })
+    app.get('/user/role', verifyJWT, async (req, res) => {
+      const user = await usersCollection.findOne({ email: req.tokenEmail })
 
-  if (!user) {
-    return res.status(404).send({ role: 'user' })
-  }
+      if (!user) {
+        return res.status(404).send({ role: 'user' })
+      }
 
-  res.send({ role: user.role || 'user' })
-})
-
-
+      res.send({ role: user.role || 'user' })
+    })
 
 
-    //     // ===== Get user profile =====
-    //   app.get("/user/profile", verifyFirebaseToken, async (req, res) => {
-    //   const user = await usersCollection.findOne(
-    //     { email: req.userEmail },
-    //     { projection: { _id: 0, name: 1, email: 1, photoURL: 1, role: 1 } } 
-    //   );
-    //   res.send(user);
+
+
+    app.post("/stats", verifyJWT, verifyADMIN, async (req, res) => {
+      const { label, value } = req.body;
+      if (!label || !value) return res.status(400).send({ error: "Label & value required" });
+
+      const result = await statsCollection.insertOne({ label, value });
+      res.send({ success: true, insertedId: result.insertedId });
+    });
+
+
+    //  Get platform stats
+    // app.get("/stats", async (req, res) => {
+    //   const stats = await statsCollection.find().toArray();
+    //   res.send(stats);
     // });
 
 
-    //     // ===== Update user profile =====
-    //     app.put("/user/profile", verifyFirebaseToken, async (req, res) => {
-    //       const { name } = req.body;
-    //       if (!name) return res.status(400).send({ message: "Name required" });
+    app.get("/stats", async (req, res) => {
+      try {
+        const users = await usersCollection.countDocuments();
+        const artworks = await artifyCollection.countDocuments();
+        const favorites = await favoritesCollection.countDocuments();
+        const blogs = await blogCollection.countDocuments();
 
-    //       await usersCollection.updateOne(
-    //         { email: req.userEmail },
-    //         { $set: { name, last_updated: new Date().toISOString() } }
-    //       );
-    //       const updatedUser = await usersCollection.findOne({ email: req.userEmail }, { projection: { _id: 0 } });
-    //       res.send({ success: true, user: updatedUser });
-    //     });
+        res.send([
+          { label: "Users", value: users },
+          { label: "Artworks", value: artworks },
+          { label: "Favorites", value: favorites },
+          { label: "Blogs", value: blogs },
+        ]);
+      } catch (err) {
+        res.status(500).send({ error: "Failed to load stats" });
+      }
+    });
+
+
+
+
+
 
 
     // get all users for admin
@@ -667,38 +659,32 @@ async function run() {
       res.send(result);
     });
 
-    // app.post("/artifys",  async (req, res) => {
-    //   const data = req.body;
-    //   data.userEmail = req.userEmail;
-    //   data.createdAt = new Date();
-    //   const result = await artifyCollection.insertOne(data);
-    //   res.send({ success: true, insertedId: result.insertedId });
-    // });
+
 
     app.post("/artifys", verifyJWT, async (req, res) => {
-  const data = req.body
-  data.userEmail = req.tokenEmail
-  data.createdAt = new Date()
-  const result = await artifyCollection.insertOne(data)
-  res.send(result)
-})
+      const data = req.body
+      data.userEmail = req.tokenEmail
+      data.createdAt = new Date()
+      const result = await artifyCollection.insertOne(data)
+      res.send(result)
+    })
 
 
-    app.put("/artifys/:id",  async (req, res) => {
+    app.put("/artifys/:id", async (req, res) => {
       const id = req.params.id;
       const updated = req.body;
       const result = await artifyCollection.updateOne({ _id: new ObjectId(id) }, { $set: updated });
       res.send(result);
     });
 
-    app.delete("/artifys/:id",  async (req, res) => {
+    app.delete("/artifys/:id", async (req, res) => {
       const id = req.params.id;
       const result = await artifyCollection.deleteOne({ _id: new ObjectId(id) });
       res.send({ success: true, result });
     });
 
     // ===== Favorites =====
-    app.post("/favorites",  async (req, res) => {
+    app.post("/favorites", async (req, res) => {
       const { artworkId, title, image } = req.body;
       const exists = await favoritesCollection.findOne({ email: req.userEmail, artworkId });
       if (exists) return res.send({ success: false, message: "Already favorited" });
@@ -713,23 +699,19 @@ async function run() {
       res.send({ success: true, result });
     });
 
-    app.get("/favorites",  async (req, res) => {
+    app.get("/favorites", async (req, res) => {
       const favorites = await favoritesCollection.find({ email: req.userEmail }).toArray();
       res.send(favorites);
     });
 
-    app.delete("/favorites/:id",  async (req, res) => {
+    app.delete("/favorites/:id", async (req, res) => {
       const result = await favoritesCollection.deleteOne({ _id: new ObjectId(req.params.id) });
       res.send({ success: true, result });
     });
 
-    // ===== Admin routes =====
-    // app.get("/users", verifyFirebaseToken, adminMiddleware, async (req, res) => {
-    //   const users = await usersCollection.find({}, { projection: { _id: 0 } }).toArray();
-    //   res.send(users);
-    // });
 
-    app.patch("/users/update-role",  async (req, res) => {
+
+    app.patch("/users/update-role", async (req, res) => {
       const { email, role } = req.body;
       if (!email || !role) return res.status(400).send({ message: "Email & role required" });
       const result = await usersCollection.updateOne({ email }, { $set: { role } });
@@ -750,6 +732,39 @@ async function run() {
       const result = await faqCollection.insertOne({ question, answer });
       res.send({ success: true, insertedId: result.insertedId });
     });
+
+
+
+    app.post("/artifys/:id/like", async (req, res) => {
+      const id = req.params.id;
+      const { email } = req.body;
+
+      if (!email) return res.status(400).send({ error: "Missing user email" });
+
+      const result = await artifyCollection.updateOne(
+        { _id: new ObjectId(id), likedBy: { $ne: email } },
+        { $inc: { likes: 1 }, $push: { likedBy: email } }
+      );
+      const updatedArtwork = await artifyCollection.findOne({ _id: new ObjectId(id) });
+      res.send({ success: true, artwork: updatedArtwork });
+    });
+
+
+    app.get("/my-likes", verifyJWT, async (req, res) => {
+      const email = req.tokenEmail;
+
+      const likedArtworks = await artifyCollection
+        .find({ likedBy: email })
+        .toArray();
+
+      res.send(likedArtworks);
+    });
+
+
+  
+
+
+
 
     app.get("/blogs", async (req, res) => res.send(await blogCollection.find().toArray()));
     app.post("/blogs", async (req, res) => {
